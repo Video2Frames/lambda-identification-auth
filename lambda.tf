@@ -28,7 +28,7 @@ resource "aws_security_group" "id_lambda" {
 resource "aws_lambda_function" "id_lambda" {
   function_name = "lambda-identification-auth"
   depends_on    = []
-  role          = [aws_iam_role.lambda_exec_role.arn]
+  role          = aws_iam_role.lambda_exec_role.arn
   handler       = "tech.buildrun.lambda.Handler::handleRequest"
   runtime       = "java17"
 
