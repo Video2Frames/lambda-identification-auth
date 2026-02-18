@@ -18,7 +18,6 @@ jobs:
   build:
     name: Build Lambda
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout repository
@@ -41,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lambda-jar
-          path: lambda/target/*.jar
+          path: app/target/*.jar
 
   # =========================================================
   # DEPLOY
@@ -50,7 +49,6 @@ jobs:
     name: Deploy Lambda + Infra
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main'
 
     environment: Production
     permissions:
@@ -65,9 +63,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: lambda-jar
-          path: lambda/target
+          path: app/target
 
-      # ⚠️ Mantendo Access Key como você solicitou
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -79,21 +76,14 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        working-directory: infra
         run: terraform init
 
       - name: Terraform Plan
-        working-directory: infra
         run: terraform plan -out=tfplan
         env:
-          TF_VAR_db_user: ${{ secrets.DB_USER }}
-          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_lambda_jar_path: lambda/target/*.jar
+          TF_VAR_lambda_jar_path: app/target/*.jar
 
       - name: Terraform Apply
-        working-directory: infra
         run: terraform apply -auto-approve tfplan
         env:
-          TF_VAR_db_user: ${{ secrets.DB_USER }}
-          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_lambda_jar_path: lambda/target/*.jar
+          TF_VAR_lambda_jar_path: app/target/*.jar
