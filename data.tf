@@ -6,7 +6,7 @@ data "terraform_remote_state" "infra" {
   backend = "s3"
   config = {
     bucket = "fiap-soat-hackathon-2026-tfstate"
-    key    = "PRD/tc-infra"
+    key    = "PRD/hackathon-infra"
     region = "us-east-1"
   }
 }
@@ -15,7 +15,7 @@ data "terraform_remote_state" "database" {
   backend = "s3"
   config = {
     bucket = "fiap-soat-hackathon-2026-tfstate"
-    key    = "PRD/tc-database"
+    key    = "PRD/hackathon-database"
     region = "us-east-1"
   }
 }

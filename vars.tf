@@ -6,8 +6,8 @@ variable "region" {
 # Tags para os recursos
 variable "tags" {
   default = {
-    Environment = "PRD"
-    Project     = "tc-lambda-identification-auth"
+    environment = "PRD"
+    project     = "tc-lambda-identification-auth"
   }
 }
 
