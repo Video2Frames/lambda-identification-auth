@@ -5,7 +5,7 @@ data "aws_s3_bucket" "video_uploads" {
 data "terraform_remote_state" "infra" {
   backend = "s3"
   config = {
-    bucket = "tc-2025-tf-states-bucket"
+    bucket = "fiap-soat-hackathon-2026-tfstate"
     key    = "PRD/tc-infra"
     region = "us-east-1"
   }
@@ -14,7 +14,7 @@ data "terraform_remote_state" "infra" {
 data "terraform_remote_state" "database" {
   backend = "s3"
   config = {
-    bucket = "tc-2025-tf-states-bucket"
+    bucket = "fiap-soat-hackathon-2026-tfstate"
     key    = "PRD/tc-database"
     region = "us-east-1"
   }
