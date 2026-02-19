@@ -11,15 +11,6 @@ data "terraform_remote_state" "infra" {
   }
 }
 
-data "terraform_remote_state" "database" {
-  backend = "s3"
-  config = {
-    bucket = "fiap-soat-hackathon-2026-tfstate"
-    key    = "PRD/hackathon-database"
-    region = "us-east-1"
-  }
-}
-
 data "aws_apigatewayv2_api" "hackathon_api" {
   api_id = data.terraform_remote_state.infra.outputs.api_gateway_id
 }
@@ -27,7 +18,7 @@ data "aws_apigatewayv2_api" "hackathon_api" {
 data "aws_vpc" "hackathon-vpc" {
   filter {
     name   = "tag:Name"
-    values = ["tc-infra-vpc"]
+    values = ["hackathon-vpc"]
   }
 }
 
@@ -39,9 +30,9 @@ data "aws_subnets" "tc_lambda_subnets" {
 }
 
 data "aws_db_instance" "db_instance" {
-  db_instance_identifier = data.terraform_remote_state.database.outputs.database_identifier
+  db_instance_identifier = data.terraform_remote_state.infra.outputs.database_identifier
 }
 
 data "aws_security_group" "rds" {
-  id = data.terraform_remote_state.database.outputs.rds_sg_id
+  id = data.terraform_remote_state.infra.outputs.rds_sg_id
 }
