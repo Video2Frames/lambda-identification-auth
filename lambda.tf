@@ -14,7 +14,7 @@ resource "aws_iam_role" "lambda_exec_role" {
 resource "aws_security_group" "id_lambda" {
   name        = "tc-id-lambda-sg"
   description = "Security group for Lambda ID function"
-  vpc_id      = data.aws_vpc.tc_lambda_vpc.id
+  vpc_id      = data.aws_vpc.hackathon-vpc.id
 
   egress {
     from_port   = 0
