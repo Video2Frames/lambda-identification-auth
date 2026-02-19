@@ -1,5 +1,5 @@
 resource "aws_iam_role" "lambda_exec_role" {
-  name = "${var.tags}-lambda-role"
+  name = "${var.tags.project}-lambda-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -58,5 +58,5 @@ resource "aws_lambda_permission" "apigw_invoke_lambda" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.id_lambda.function_name
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "${data.aws_apigatewayv2_api.tc_api.execution_arn}/*/*"
+  source_arn    = "${data.aws_apigatewayv2_api.hackathon_api.execution_arn}/*/*"
 }
