@@ -32,3 +32,7 @@ data "aws_subnets" "tc_lambda_subnets" {
 data "aws_db_instance" "db_instance" {
   db_instance_identifier = data.terraform_remote_state.infra.outputs.database_identifier
 }
+
+data "aws_security_group" "rds" {
+  id = data.terraform_remote_state.infra.outputs.rds_sg_id
+}
