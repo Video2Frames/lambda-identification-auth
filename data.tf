@@ -20,5 +20,5 @@ data "aws_db_instance" "db_instance" {
 }
 
 data "aws_security_group" "rds" {
-  id = data.terraform_remote_state.infra.outputs.rds_sg_id
+  id = data.terraform_remote_state.infra.outputs.id
 }
