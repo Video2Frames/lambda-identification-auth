@@ -9,7 +9,7 @@ public class DatabaseConnection {
         return DriverManager.getConnection(
                 System.getenv("DB_URL"),
                 System.getenv("DB_USER"),
-                System.getenv("DB_PASS")
+                System.getenv("DB_PASSWORD")
         );
     }
 }
