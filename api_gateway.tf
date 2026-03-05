@@ -11,3 +11,17 @@ resource "aws_apigatewayv2_route" "route" {
   route_key = "POST /clients"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_backend.id}"
 }
+
+# GET /clients/{id}
+resource "aws_apigatewayv2_route" "get_client" {
+  api_id    = data.aws_apigatewayv2_api.hackathon_api.id
+  route_key = "GET /clients/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_backend.id}"
+}
+
+# GET /me (usuario autenticado)
+resource "aws_apigatewayv2_route" "me" {
+  api_id    = data.aws_apigatewayv2_api.hackathon_api.id
+  route_key = "GET /me"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_backend.id}"
+}
