@@ -119,22 +119,36 @@ public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIG
 
     private APIGatewayProxyResponseEvent me(APIGatewayProxyRequestEvent request) throws Exception {
 
-        String authHeader = request.getHeaders().get("Authorization");
+        Map<String, String> headers = request.getHeaders();
 
-        if (authHeader == null) {
-            return response(401, Map.of("message", "token não informado"));
+        if (headers == null || !headers.containsKey("Authorization")) {
+            return response(401, Map.of("message", "Token não informado"));
         }
 
-        String token = authHeader.replace("Bearer ", "");
+        String authHeader = headers.get("Authorization");
 
-        Claims claims = Jwts.parserBuilder()
-                .build()
-                .parseClaimsJwt(token)
-                .getBody();
+        if (!authHeader.startsWith("Bearer ")) {
+            return response(401, Map.of("message", "Token inválido"));
+        }
+
+        String token = authHeader.substring(7);
+
+        // JWT possui 3 partes
+        String[] parts = token.split("\\.");
+
+        if (parts.length != 3) {
+            return response(401, Map.of("message", "Token JWT inválido"));
+        }
+
+        // Decodifica payload
+        String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
+
+        ObjectMapper mapper = new ObjectMapper();
+        Map<String, Object> claims = mapper.readValue(payload, Map.class);
 
         Map<String, Object> user = new HashMap<>();
 
-        user.put("id", claims.getSubject());
+        user.put("id", claims.get("sub"));
         user.put("email", claims.get("email"));
 
         return response(200, user);
