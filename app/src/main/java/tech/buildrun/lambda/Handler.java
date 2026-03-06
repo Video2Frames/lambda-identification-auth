@@ -84,7 +84,7 @@ public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIG
 
     private void createUserCognito(ClientDTO dto) {
         cognito.adminCreateUser(AdminCreateUserRequest.builder()
-                .userPoolId(System.getenv("USER_POOL_ID"))
+                    .userPoolId(System.getenv("USER_POOL_ID"))
                 .username(dto.getEmail())
                 .userAttributes(
                         AttributeType.builder().name("email").value(dto.getEmail()).build()

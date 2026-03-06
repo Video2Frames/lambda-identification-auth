@@ -58,19 +58,16 @@ resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
 # SECURITY GROUP - LAMBDA
 ############################################
 
-resource "aws_security_group" "id_lambda" {
-  name        = "tc-id-lambda-sg"
-  description = "Security group for Lambda ID function"
-  vpc_id      = data.terraform_remote_state.infra.outputs.vpc_id
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+data "aws_security_group" "id_lambda" {
+  # Lookup an existing security group by name in the target VPC.
+  # Assumes the security group `tc-id-lambda-sg` is already created elsewhere (e.g. in infra state).
+  filter {
+    name   = "group-name"
+    values = ["tc-id-lambda-sg"]
   }
 
-  tags = var.tags
+  # Restrict lookup to the same VPC used by the infra remote state to avoid ambiguous matches.
+  vpc_id = data.terraform_remote_state.infra.outputs.vpc_id
 }
 
 ############################################
@@ -100,7 +97,7 @@ resource "aws_lambda_function" "id_lambda" {
 
   vpc_config {
     subnet_ids         = data.terraform_remote_state.infra.outputs.private_subnets
-    security_group_ids = [aws_security_group.id_lambda.id]
+    security_group_ids = [data.aws_security_group.id_lambda.id]
   }
 
   tags = var.tags
@@ -127,6 +124,6 @@ resource "aws_security_group_rule" "id_lambda_to_rds" {
   from_port                = 5432
   to_port                  = 5432
   protocol                 = "tcp"
-  source_security_group_id = aws_security_group.id_lambda.id
+  source_security_group_id = data.aws_security_group.id_lambda.id
   security_group_id        = data.aws_security_group.rds.id
 }
