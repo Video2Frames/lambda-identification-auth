@@ -6,13 +6,11 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
-
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
 
 import java.util.*;
 
@@ -32,18 +30,20 @@ public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIG
 
         try {
 
-            String path = request.getPath();
-            String method = request.getHttpMethod();
+            // Extract method and path in a way that supports both REST (v1) and HTTP (v2) API Gateway events.
+            Route route = extractPathAndMethod(request);
+            String safePath = route.path == null ? "" : route.path;
+            String safeMethod = route.method == null ? "" : route.method;
 
-            if (path.endsWith("/clients") && method.equalsIgnoreCase("POST")) {
+            if (safePath.endsWith("/clients") && safeMethod.equalsIgnoreCase("POST")) {
                 return createClient(request);
             }
 
-            if (path.endsWith("/login") && method.equalsIgnoreCase("POST")) {
+            if (safePath.endsWith("/login") && safeMethod.equalsIgnoreCase("POST")) {
                 return login(request);
             }
 
-            if (path.endsWith("/me") && method.equalsIgnoreCase("GET")) {
+            if (safePath.endsWith("/me") && safeMethod.equalsIgnoreCase("GET")) {
                 return me(request);
             }
 
@@ -61,7 +61,7 @@ public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIG
 
     private APIGatewayProxyResponseEvent createClient(APIGatewayProxyRequestEvent request) throws Exception {
 
-        Map<String, String> body = mapper.readValue(request.getBody(), Map.class);
+        Map<String, String> body = mapper.readValue(request.getBody(), new TypeReference<>() {});
 
         String email = body.get("email");
         String password = body.get("password");
@@ -92,7 +92,7 @@ public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIG
 
     private APIGatewayProxyResponseEvent login(APIGatewayProxyRequestEvent request) throws Exception {
 
-        Map<String, String> body = mapper.readValue(request.getBody(), Map.class);
+        Map<String, String> body = mapper.readValue(request.getBody(), new TypeReference<>() {});
 
         String email = body.get("email");
         String password = body.get("password");
@@ -121,17 +121,29 @@ public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIG
 
         Map<String, String> headers = request.getHeaders();
 
-        if (headers == null || !headers.containsKey("Authorization")) {
+        // look up Authorization header case-insensitively to handle API Gateway/clients that lowercase header names
+        String authHeader = null;
+        if (headers != null) {
+            for (Map.Entry<String, String> e : headers.entrySet()) {
+                if ("authorization".equalsIgnoreCase(e.getKey())) {
+                    authHeader = e.getValue();
+                    break;
+                }
+            }
+        }
+
+        if (authHeader == null || authHeader.trim().isEmpty()) {
             return response(401, Map.of("message", "Token não informado"));
         }
 
-        String authHeader = headers.get("Authorization");
+        authHeader = authHeader.trim();
 
-        if (!authHeader.startsWith("Bearer ")) {
+        // Accept Bearer token case-insensitively and tolerate extra spaces
+        if (!authHeader.toLowerCase().startsWith("bearer ")) {
             return response(401, Map.of("message", "Token inválido"));
         }
 
-        String token = authHeader.substring(7);
+        String token = authHeader.substring(authHeader.indexOf(' ') + 1).trim();
 
         // JWT possui 3 partes
         String[] parts = token.split("\\.");
@@ -143,8 +155,7 @@ public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIG
         // Decodifica payload
         String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
 
-        ObjectMapper mapper = new ObjectMapper();
-        Map<String, Object> claims = mapper.readValue(payload, Map.class);
+        Map<String, Object> claims = mapper.readValue(payload, new TypeReference<>() {});
 
         Map<String, Object> user = new HashMap<>();
 
@@ -160,5 +171,89 @@ public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIG
                 .withStatusCode(status)
                 .withHeaders(Map.of("Content-Type", "application/json"))
                 .withBody(mapper.writeValueAsString(body));
+    }
+
+    // Helper types and methods for flexible extraction
+    private static class Route {
+        String path;
+        String method;
+
+        Route(String path, String method) {
+            this.path = path;
+            this.method = method;
+        }
+    }
+
+    private Route extractPathAndMethod(APIGatewayProxyRequestEvent request) {
+        if (request == null) {
+            return new Route(null, null);
+        }
+
+        String path = request.getPath();
+        String method = request.getHttpMethod();
+
+        // If both present, return immediately
+        if (path != null && method != null) {
+            return new Route(path, method);
+        }
+
+        // Try to inspect requestContext for HTTP v2 style: requestContext.http.method & requestContext.http.path
+        Object rc = request.getRequestContext();
+        if (rc != null) {
+            try {
+                // try rc.getHttp() -> object with getMethod() and getPath()
+                java.lang.reflect.Method getHttp = null;
+                try {
+                    getHttp = rc.getClass().getMethod("getHttp");
+                } catch (NoSuchMethodException ignored) {}
+
+                if (getHttp != null) {
+                    Object httpObj = getHttp.invoke(rc);
+                    if (httpObj != null) {
+                        try {
+                            java.lang.reflect.Method getMethod = httpObj.getClass().getMethod("getMethod");
+                            Object m = getMethod.invoke(httpObj);
+                            if (m instanceof String && method == null) method = (String) m;
+                        } catch (NoSuchMethodException ignored) {}
+
+                        try {
+                            java.lang.reflect.Method getPath = httpObj.getClass().getMethod("getPath");
+                            Object p = getPath.invoke(httpObj);
+                            if (p instanceof String && path == null) path = (String) p;
+                        } catch (NoSuchMethodException ignored) {}
+
+                        try {
+                            java.lang.reflect.Method getRawPath = httpObj.getClass().getMethod("getRawPath");
+                            Object p = getRawPath.invoke(httpObj);
+                            if (p instanceof String && (path == null || path.isEmpty())) path = (String) p;
+                        } catch (NoSuchMethodException ignored) {}
+                    }
+                }
+
+                // fallback: requestContext may have getHttpMethod() or getResourcePath()
+                try {
+                    java.lang.reflect.Method mth = rc.getClass().getMethod("getHttpMethod");
+                    Object m = mth.invoke(rc);
+                    if (m instanceof String && method == null) method = (String) m;
+                } catch (Exception ignored) {}
+
+                try {
+                    java.lang.reflect.Method pth = rc.getClass().getMethod("getResourcePath");
+                    Object p = pth.invoke(rc);
+                    if (p instanceof String && path == null) path = (String) p;
+                } catch (Exception ignored) {}
+
+                try {
+                    java.lang.reflect.Method pth2 = rc.getClass().getMethod("getPath");
+                    Object p = pth2.invoke(rc);
+                    if (p instanceof String && path == null) path = (String) p;
+                } catch (Exception ignored) {}
+
+            } catch (Exception ignored) {
+                // ignore reflection issues and continue
+            }
+        }
+
+        return new Route(path, method);
     }
 }
