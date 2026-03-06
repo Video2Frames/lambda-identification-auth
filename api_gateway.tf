@@ -12,10 +12,10 @@ resource "aws_apigatewayv2_route" "route" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda_backend.id}"
 }
 
-# GET /clients/{id}
-resource "aws_apigatewayv2_route" "get_client" {
+# POST /login
+resource "aws_apigatewayv2_route" "login" {
   api_id    = data.aws_apigatewayv2_api.hackathon_api.id
-  route_key = "GET /clients/{id}"
+  route_key = "POST /login"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_backend.id}"
 }
 

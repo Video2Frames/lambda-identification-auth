@@ -1,18 +1,31 @@
 package tech.buildrun.lambda;
 
-import com.amazonaws.services.lambda.runtime.*;
-import com.amazonaws.services.lambda.runtime.events.*;
+import com.amazonaws.services.lambda.runtime.Context;
+import com.amazonaws.services.lambda.runtime.RequestHandler;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyRequestEvent;
+import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import software.amazon.awssdk.services.cognitoidentityprovider.*;
+
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.cognitoidentityprovider.CognitoIdentityProviderClient;
 import software.amazon.awssdk.services.cognitoidentityprovider.model.*;
 
-import java.sql.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+
+import java.util.*;
 
 public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIGatewayProxyResponseEvent> {
 
+    private static final String USER_POOL_ID =  System.getenv("USER_POOL_ID");
+    private static final String CLIENT_ID = System.getenv("CLIENT_ID");
+
     private final ObjectMapper mapper = new ObjectMapper();
-    private final CognitoIdentityProviderClient cognito = CognitoIdentityProviderClient.create();
+
+    private final CognitoIdentityProviderClient cognito = CognitoIdentityProviderClient.builder()
+            .region(Region.US_EAST_1)
+            .build();
 
     @Override
     public APIGatewayProxyResponseEvent handleRequest(APIGatewayProxyRequestEvent request, Context context) {
@@ -22,141 +35,116 @@ public class Handler implements RequestHandler<APIGatewayProxyRequestEvent, APIG
             String path = request.getPath();
             String method = request.getHttpMethod();
 
-            // POST /clients
-            if ("/clients".equals(path) && "POST".equals(method)) {
-                ClientDTO dto = mapper.readValue(request.getBody(), ClientDTO.class);
-
-                createUserCognito(dto);
-                saveClientAurora(dto);
-
-                return response(201, "Cliente cadastrado com sucesso");
+            if (path.endsWith("/clients") && method.equalsIgnoreCase("POST")) {
+                return createClient(request);
             }
 
-            // GET /me
-            if ("/me".equals(path) && "GET".equals(method)) {
-
-                String email = extractEmailFromToken(request);
-
-                String result = findClientByEmail(email);
-
-                return new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
-                        .withBody("{\"email\":\"" + result + "\"}");
+            if (path.endsWith("/login") && method.equalsIgnoreCase("POST")) {
+                return login(request);
             }
 
-            // GET /clients/{id}
-            if (path.startsWith("/clients/") && "GET".equals(method)) {
-
-                String id = request.getPathParameters().get("id");
-
-                String email = findClientById(id);
-
-                return new APIGatewayProxyResponseEvent()
-                        .withStatusCode(200)
-                        .withBody("{\"email\":\"" + email + "\"}");
+            if (path.endsWith("/me") && method.equalsIgnoreCase("GET")) {
+                return me(request);
             }
 
-            return response(404, "Endpoint não encontrado");
+            return response(404, Map.of("message", "endpoint não encontrado"));
 
         } catch (Exception e) {
-            return response(500, e.getMessage());
-        }
-    }
 
-    private String findClientById(String id) throws Exception {
-
-        String sql = "SELECT email FROM tb_identification WHERE id = ?";
-
-        try (Connection conn = DatabaseConnection.getConnection()) {
-
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setObject(1, java.util.UUID.fromString(id));
-
-            ResultSet rs = ps.executeQuery();
-
-            if (rs.next()) {
-                return rs.getString("email");
+            try {
+                return response(500, Map.of("error", e.getMessage()));
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
             }
-
-            throw new RuntimeException("Cliente não encontrado");
         }
     }
 
-    private void createUserCognito(ClientDTO dto) {
-        cognito.adminCreateUser(AdminCreateUserRequest.builder()
-                    .userPoolId(System.getenv("USER_POOL_ID"))
-                .username(dto.getEmail())
+    private APIGatewayProxyResponseEvent createClient(APIGatewayProxyRequestEvent request) throws Exception {
+
+        Map<String, String> body = mapper.readValue(request.getBody(), Map.class);
+
+        String email = body.get("email");
+        String password = body.get("password");
+
+        AdminCreateUserRequest createUserRequest = AdminCreateUserRequest.builder()
+                .userPoolId(USER_POOL_ID)
+                .username(email)
                 .userAttributes(
-                        AttributeType.builder().name("email").value(dto.getEmail()).build()
+                        AttributeType.builder().name("email").value(email).build(),
+                        AttributeType.builder().name("email_verified").value("true").build()
                 )
-                .temporaryPassword(dto.getPassword())
-                .build());
+                .messageAction(MessageActionType.SUPPRESS)
+                .build();
 
-        cognito.adminSetUserPassword(AdminSetUserPasswordRequest.builder()
-                .userPoolId(System.getenv("USER_POOL_ID"))
-                .username(dto.getEmail())
-                .password(dto.getPassword())
+        cognito.adminCreateUser(createUserRequest);
+
+        AdminSetUserPasswordRequest passwordRequest = AdminSetUserPasswordRequest.builder()
+                .userPoolId(USER_POOL_ID)
+                .username(email)
+                .password(password)
                 .permanent(true)
-                .build());
+                .build();
+
+        cognito.adminSetUserPassword(passwordRequest);
+
+        return response(201, Map.of("message", "cliente criado com sucesso"));
     }
 
-    private void saveClientAurora(ClientDTO dto) throws Exception {
+    private APIGatewayProxyResponseEvent login(APIGatewayProxyRequestEvent request) throws Exception {
 
-        String sql = "INSERT INTO tb_identification (email, senha) VALUES (?, ?)";
+        Map<String, String> body = mapper.readValue(request.getBody(), Map.class);
 
-        try (Connection conn = DatabaseConnection.getConnection()) {
+        String email = body.get("email");
+        String password = body.get("password");
 
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, dto.getEmail());
-            ps.setString(2, PasswordService.hash(dto.getPassword()));
+        Map<String, String> authParams = new HashMap<>();
+        authParams.put("USERNAME", email);
+        authParams.put("PASSWORD", password);
 
-            ps.executeUpdate();
-        }
+        InitiateAuthRequest authRequest = InitiateAuthRequest.builder()
+                .authFlow(AuthFlowType.USER_PASSWORD_AUTH)
+                .clientId(CLIENT_ID)
+                .authParameters(authParams)
+                .build();
+
+        InitiateAuthResponse authResponse = cognito.initiateAuth(authRequest);
+
+        Map<String, Object> tokens = new HashMap<>();
+        tokens.put("id_token", authResponse.authenticationResult().idToken());
+        tokens.put("access_token", authResponse.authenticationResult().accessToken());
+        tokens.put("refresh_token", authResponse.authenticationResult().refreshToken());
+
+        return response(200, tokens);
     }
 
-    private String findClientByEmail(String email) throws Exception {
-
-        String sql = "SELECT email FROM tb_identification WHERE email = ?";
-
-        try (Connection conn = DatabaseConnection.getConnection()) {
-
-            PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, email);
-
-            ResultSet rs = ps.executeQuery();
-
-            if (rs.next()) {
-                return rs.getString("email");
-            }
-
-            throw new RuntimeException("Cliente não encontrado");
-        }
-    }
-
-    private String extractEmailFromToken(APIGatewayProxyRequestEvent request) {
+    private APIGatewayProxyResponseEvent me(APIGatewayProxyRequestEvent request) throws Exception {
 
         String authHeader = request.getHeaders().get("Authorization");
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            throw new RuntimeException("Token não enviado");
+        if (authHeader == null) {
+            return response(401, Map.of("message", "token não informado"));
         }
 
-        String token = authHeader.substring(7);
+        String token = authHeader.replace("Bearer ", "");
 
-        String[] parts = token.split("\\.");
-        String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
+        Claims claims = Jwts.parserBuilder()
+                .build()
+                .parseClaimsJwt(token)
+                .getBody();
 
-        try {
-            return mapper.readTree(payload).get("email").asText();
-        } catch (Exception e) {
-            throw new RuntimeException("Erro ao extrair email do token");
-        }
+        Map<String, Object> user = new HashMap<>();
+
+        user.put("id", claims.getSubject());
+        user.put("email", claims.get("email"));
+
+        return response(200, user);
     }
 
+    private APIGatewayProxyResponseEvent response(int status, Object body) throws Exception {
 
-    private APIGatewayProxyResponseEvent response(int status, String msg) {
         return new APIGatewayProxyResponseEvent()
                 .withStatusCode(status)
-                .withBody("{\"message\":\"" + msg + "\"}");
+                .withHeaders(Map.of("Content-Type", "application/json"))
+                .withBody(mapper.writeValueAsString(body));
     }
 }

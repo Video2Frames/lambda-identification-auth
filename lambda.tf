@@ -92,6 +92,9 @@ resource "aws_lambda_function" "id_lambda" {
       DB_URL      = local.jdbc_url
       DB_USER     = var.db_user
       DB_PASSWORD = var.db_password
+
+      USER_POOL_ID = aws_cognito_user_pool.pool.id
+      CLIENT_ID    = aws_cognito_user_pool_client.client.id
     }
   }
 

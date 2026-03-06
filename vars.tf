@@ -27,3 +27,4 @@ variable "lambda_jar_path" {
   type        = string
   default     = "app/target/lambda-identification-auth.jar"
 }
+
