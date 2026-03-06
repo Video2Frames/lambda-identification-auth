@@ -1,19 +1,19 @@
-name: Destroy Infrastructure
+name: Destroy AWS Infrastructure
 
 on:
   workflow_dispatch:
 
 env:
   AWS_REGION: us-east-1
-  TF_VAR_db_user: ${{ secrets.DB_USER }}
-  TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+  TF_WORKSPACE: default
 
 jobs:
   destroy:
-    name: Terraform Destroy
+    name: Destroy Infrastructure
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -29,6 +29,9 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
+
+      - name: Select Workspace
+        run: terraform workspace select $TF_WORKSPACE || terraform workspace new $TF_WORKSPACE
 
       - name: Terraform Destroy
         run: terraform destroy -auto-approve

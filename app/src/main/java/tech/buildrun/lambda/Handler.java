@@ -135,7 +135,7 @@ public class Handler implements RequestHandler<APIGatewayV2HTTPEvent, APIGateway
             return response(401, "Token não informado");
         }
 
-        String authHeader = headers.get("Authorization");
+        String authHeader = headers.get("authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return response(401, "Token inválido");
