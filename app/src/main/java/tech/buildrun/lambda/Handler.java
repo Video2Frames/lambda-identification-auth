@@ -107,18 +107,20 @@ public class Handler implements RequestHandler<APIGatewayV2HTTPEvent, APIGateway
         authParams.put("USERNAME", email);
         authParams.put("PASSWORD", password);
 
-        AdminInitiateAuthRequest authRequest =
-                AdminInitiateAuthRequest.builder()
-                        .userPoolId(USER_POOL_ID)
-                        .clientId(CLIENT_ID)
-                        .authFlow(AuthFlowType.ADMIN_NO_SRP_AUTH)
-                        .authParameters(authParams)
-                        .build();
+        InitiateAuthRequest authRequest = InitiateAuthRequest.builder()
+                .authFlow(AuthFlowType.USER_PASSWORD_AUTH)
+                .clientId(CLIENT_ID)
+                .authParameters(authParams)
+                .build();
 
-        AdminInitiateAuthResponse authResponse =
-                cognito.adminInitiateAuth(authRequest);
+        InitiateAuthResponse authResponse = cognito.initiateAuth(authRequest);
 
-        return response(200, authResponse.authenticationResult());
+        Map<String, Object> tokens = new HashMap<>();
+        tokens.put("id_token", authResponse.authenticationResult().idToken());
+        tokens.put("access_token", authResponse.authenticationResult().accessToken());
+        tokens.put("refresh_token", authResponse.authenticationResult().refreshToken());
+
+        return response(200, tokens);
     }
 
     // ---------------------------------------------------
@@ -133,7 +135,7 @@ public class Handler implements RequestHandler<APIGatewayV2HTTPEvent, APIGateway
             return response(401, "Token não informado");
         }
 
-        String authHeader = headers.get("authorization");
+        String authHeader = headers.get("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return response(401, "Token inválido");
