@@ -156,19 +156,17 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>0.8.11</version>
+
                 <executions>
-                    <!-- Anexa o JaCoCo à JVM dos testes (CRÍTICO) -->
                     <execution>
-                        <id>prepare-agent</id>
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
 
-                    <!-- Gera o relatório XML que o Sonar lê -->
                     <execution>
                         <id>report</id>
-                        <phase>verify</phase>
+                        <phase>test</phase>
                         <goals>
                             <goal>report</goal>
                         </goals>

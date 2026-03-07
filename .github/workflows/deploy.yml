@@ -35,11 +35,11 @@ jobs:
           cache: maven
 
       # -------------------------------
-      # RUN TESTS
+      # BUILD + TESTS + COVERAGE
       # -------------------------------
-      - name: Run Unit Tests
+      - name: Build with Tests and Coverage
         working-directory: app
-        run: mvn -B test
+        run: mvn -B clean verify
 
       # -------------------------------
       # TEST REPORT
@@ -53,12 +53,8 @@ jobs:
           reporter: java-junit
 
       # -------------------------------
-      # COVERAGE
+      # COVERAGE REPORT
       # -------------------------------
-      - name: Generate Coverage
-        working-directory: app
-        run: mvn jacoco:report
-
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
@@ -66,14 +62,14 @@ jobs:
           path: app/target/site/jacoco
 
       # -------------------------------
-      # BUILD JAR
+      # SHOW GENERATED JAR
       # -------------------------------
-      - name: Build fat JAR
-        working-directory: app
-        run: |
-          mvn -B clean package
-          ls -lh target/*.jar
+      - name: List generated JAR
+        run: ls -lh app/target/*.jar
 
+      # -------------------------------
+      # UPLOAD JAR
+      # -------------------------------
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
