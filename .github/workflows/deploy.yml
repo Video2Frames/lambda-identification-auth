@@ -61,6 +61,12 @@ jobs:
           name: coverage-report
           path: app/target/site/jacoco
 
+      - name: Jacoco Coverage Report
+        uses: madrapps/jacoco-report@v1.6
+        with:
+          paths: app/target/site/jacoco/jacoco.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       # -------------------------------
       # SHOW GENERATED JAR
       # -------------------------------
