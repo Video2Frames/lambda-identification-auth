@@ -30,10 +30,44 @@ jobs:
           distribution: temurin
           cache: maven
 
+      # -------------------------------
+      # RUN TESTS
+      # -------------------------------
+      - name: Run Unit Tests
+        working-directory: app
+        run: mvn -B test
+
+      # -------------------------------
+      # TEST REPORT
+      # -------------------------------
+      - name: Publish Test Report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Maven Tests
+          path: app/target/surefire-reports/*.xml
+          reporter: java-junit
+
+      # -------------------------------
+      # COVERAGE
+      # -------------------------------
+      - name: Generate Coverage
+        working-directory: app
+        run: mvn jacoco:report
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: app/target/site/jacoco
+
+      # -------------------------------
+      # BUILD JAR
+      # -------------------------------
       - name: Build fat JAR
         working-directory: app
         run: |
-          mvn -B clean package -DskipTests
+          mvn -B clean package
           ls -lh target/*.jar
 
       - name: Upload artifact
@@ -41,6 +75,7 @@ jobs:
         with:
           name: lambda-jar
           path: app/target/*.jar
+
 
   # =========================================================
   # DEPLOY
@@ -81,15 +116,9 @@ jobs:
       - name: Terraform Plan
         run: terraform plan -out=tfplan
         env:
-          TF_VAR_db_user: ${{ secrets.DB_USER }}
-          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET_KEY }}
           TF_VAR_lambda_jar_path: app/target/lambda-identification-auth.jar
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
         env:
-          TF_VAR_db_user: ${{ secrets.DB_USER }}
-          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-          TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET_KEY }}
           TF_VAR_lambda_jar_path: app/target/lambda-identification-auth.jar

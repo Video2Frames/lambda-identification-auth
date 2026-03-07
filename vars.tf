@@ -11,17 +11,6 @@ variable "tags" {
   }
 }
 
-# Banco de dados
-variable "db_user" {
-  description = "Usuário do banco de dados"
-  sensitive   = true
-}
-
-variable "db_password" {
-  description = "Senha do banco de dados"
-  sensitive   = true
-}
-
 variable "lambda_jar_path" {
   description = "Caminho do fat JAR da Lambda"
   type        = string
