@@ -43,7 +43,7 @@ jobs:
         if: always()
         with:
           name: Maven Tests
-          path: target/surefire-reports/*.xml
+          path: app/target/surefire-reports/*.xml
           reporter: java-junit
 
       - name: Upload Coverage
