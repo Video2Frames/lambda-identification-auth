@@ -96,8 +96,7 @@ jobs:
             -Dsonar.organization=video2frames \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.token=${SONAR_TOKEN} \
-            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-        working-directory: app
+            -Dsonar.coverage.jacoco.xmlReportPaths=app/target/site/jacoco/jacoco.xml
   
 
   ###########################################################
