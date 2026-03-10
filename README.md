@@ -6,6 +6,7 @@ Esta Lambda implementa endpoints HTTP (via API Gateway v2) para criar clientes e
 
 Observações rápidas
 
+
 - A Lambda está implementada em `app/src/main/java/tech/buildrun/lambda/Handler.java`.
 - A região do SDK está fixa como `us-east-1` no código.
 - Variáveis de ambiente necessárias:
