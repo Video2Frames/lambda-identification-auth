@@ -35,53 +35,88 @@ jobs:
           distribution: temurin
           cache: maven
 
-      # -------------------------------
-      # BUILD + TESTS + COVERAGE
-      # -------------------------------
-      - name: Build with Tests and Coverage
-        working-directory: app
+  ###########################################################
+  # BUILD + TEST + COVERAGE
+  ###########################################################
+
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+          cache: maven
+
+      - name: Build with Tests
         run: mvn -B clean verify
 
-      # -------------------------------
-      # TEST REPORT
-      # -------------------------------
       - name: Publish Test Report
         uses: dorny/test-reporter@v1
         if: always()
         with:
           name: Maven Tests
-          path: app/target/surefire-reports/*.xml
+          path: target/surefire-reports/*.xml
           reporter: java-junit
 
-      # -------------------------------
-      # COVERAGE REPORT
-      # -------------------------------
-      - name: Upload Coverage Report
+      - name: Upload Coverage
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-report
-          path: app/target/site/jacoco
+          name: jacoco-report
+          path: target/site/jacoco
 
-      - name: Jacoco Coverage Report
-        uses: madrapps/jacoco-report@v1.6
+  ###########################################################
+  # SONARCLOUD
+  ###########################################################
+
+  sonarqube:
+    name: SonarCloud Analysis
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    environment: production
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v5
         with:
-          paths: app/target/site/jacoco/jacoco.xml
-          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
-      # -------------------------------
-      # SHOW GENERATED JAR
-      # -------------------------------
-      - name: List generated JAR
-        run: ls -lh app/target/*.jar
-
-      # -------------------------------
-      # UPLOAD JAR
-      # -------------------------------
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          name: lambda-jar
-          path: app/target/*.jar
+          java-version: 17
+          distribution: temurin
+          cache: maven
+
+      - name: Cache Sonar packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+
+      - name: Debug SONAR_TOKEN
+        run: |
+          if [ -z "${{ secrets.SONAR_TOKEN }}" ]; then
+            echo "Token exists: false"
+          else
+            echo "Token exists: true"
+          fi
+
+      - name: SonarCloud Analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          mvn -B clean verify sonar:sonar \
+            -Dsonar.projectKey=video2frames_lambda-identification-auth \
+            -Dsonar.organization=video2frames \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.token=${SONAR_TOKEN} \
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
 
 
   # =========================================================
