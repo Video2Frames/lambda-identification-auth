@@ -7,7 +7,6 @@ on:
   workflow_dispatch:
 
 env:
-  TF_WORKSPACE: default
   AWS_REGION: us-east-1
 
 jobs:
@@ -19,13 +18,13 @@ jobs:
     name: Build and Test
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: app
-
     permissions:
       contents: read
       checks: write
+
+    defaults:
+      run:
+        working-directory: app
 
     steps:
       - name: Checkout repository
@@ -40,7 +39,6 @@ jobs:
 
       - name: Build with Tests
         run: mvn -B clean verify
-        working-directory: app
 
       - name: Publish Test Report
         uses: dorny/test-reporter@v1
@@ -49,18 +47,19 @@ jobs:
           name: Maven Tests
           path: app/target/surefire-reports/*.xml
           reporter: java-junit
-
-      - name: Upload Coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: jacoco-report
-          path: target/site/jacoco
+          fail-on-error: false
 
       - name: Upload Lambda JAR
         uses: actions/upload-artifact@v4
         with:
           name: lambda-jar
           path: app/target/lambda-identification-auth.jar
+
+      - name: Upload Coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: app/target/site/jacoco
 
 
   ###########################################################
@@ -70,7 +69,6 @@ jobs:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
     needs: build-and-test
-    if: github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout repository
@@ -85,13 +83,8 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: Cache Sonar packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-
-      - name: SonarCloud Analysis
+      - name: Run SonarCloud
+        working-directory: app
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
@@ -100,7 +93,7 @@ jobs:
             -Dsonar.organization=video2frames \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.token=${SONAR_TOKEN} \
-            -Dsonar.coverage.jacoco.xmlReportPaths=app/target/site/jacoco/jacoco.xml
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
   
 
   ###########################################################
@@ -109,6 +102,7 @@ jobs:
   deploy:
     name: Deploy Lambda + Infra
     runs-on: ubuntu-latest
+
     needs:
       - build-and-test
       - sonarqube
